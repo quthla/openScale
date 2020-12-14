@@ -61,7 +61,8 @@ before_deploy:
 deploy:
   provider: releases
   api-key: $GITHUB_API_KEY
-  file: openScale-${TAG}-build.apk
+  # file: openScale-${TAG}-build.apk
+  file: app/build/outputs/apk/debug/openScale-debug.apk
   skip_cleanup: true
   name: openScale development build (${TRAVIS_BRANCH})
   body: Automatic openScale development build of $TRAVIS_BRANCH branch
