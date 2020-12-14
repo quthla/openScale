@@ -57,6 +57,7 @@ before_deploy:
   - git push gh :travis-${TAG}-build || true
   - git push -f gh travis-${TAG}-build
   - git remote remove gh
+  - find . -name "*.apk"
 
 deploy:
   provider: releases
