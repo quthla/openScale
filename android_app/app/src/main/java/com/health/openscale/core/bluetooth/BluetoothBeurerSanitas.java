@@ -172,7 +172,7 @@ public class BluetoothBeurerSanitas extends BluetoothCommunication {
         switch (stepNr) {
             case 0:
                 // Setup notification
-                setNotificationOn(CUSTOM_CHARACTERISTIC_WEIGHT);
+                setNotificationOn(CUSTOM_SERVICE_1, CUSTOM_CHARACTERISTIC_WEIGHT);
                 break;
             case 1:
                 // Say "Hello" to the scale and wait for ack
@@ -234,7 +234,7 @@ public class BluetoothBeurerSanitas extends BluetoothCommunication {
                 stopMachineState();
                 break;
             case 8:
-                if (!currentRemoteUser.isNew) {
+                if (currentRemoteUser != null && !currentRemoteUser.isNew) {
                     sendCommand(CMD_DO_MEASUREMENT, encodeUserId(currentRemoteUser));
                     stopMachineState();
                 } else {
@@ -428,6 +428,10 @@ public class BluetoothBeurerSanitas extends BluetoothCommunication {
                         batteryLevel, weightThreshold, bodyFatThreshold, currentUnit, userExists,
                         userReferWeightExists, userMeasurementExist, scaleVersion);
 
+                if (batteryLevel <= 10) {
+                    sendMessage(R.string.info_scale_low_battery, batteryLevel);
+                }
+
                 byte requestedUnit = (byte) currentUnit;
                 ScaleUser user = OpenScale.getInstance().getSelectedScaleUser();
                 switch (user.getScaleUnit()) {
@@ -566,7 +570,7 @@ public class BluetoothBeurerSanitas extends BluetoothCommunication {
     }
 
     private void writeBytes(byte[] data) {
-        writeBytes(CUSTOM_CHARACTERISTIC_WEIGHT, data);
+        writeBytes(CUSTOM_SERVICE_1, CUSTOM_CHARACTERISTIC_WEIGHT, data);
     }
 
     private void sendCommand(byte command, byte... parameters) {

@@ -16,14 +16,13 @@
 
 package com.health.openscale.core.bluetooth;
 
-import android.bluetooth.BluetoothGattService;
 import android.content.Context;
 
 import com.health.openscale.R;
 import com.health.openscale.core.OpenScale;
 import com.health.openscale.core.datatypes.ScaleMeasurement;
 import com.health.openscale.core.datatypes.ScaleUser;
-import com.polidea.rxandroidble2.RxBleDeviceServices;
+import com.welie.blessed.BluetoothPeripheral;
 
 import java.util.Calendar;
 import java.util.Date;
@@ -40,6 +39,7 @@ public class BluetoothSenssun extends BluetoothCommunication {
     private final UUID MODEL_B_NOTIFICATION_CHARACTERISTIC = UUID.fromString("0000ffb2-0000-1000-8000-00805f9b34fb");
     private final UUID MODEL_B_WRITE_CHARACTERISTIC = UUID.fromString("0000ffb2-0000-1000-8000-00805f9b34fb");
 
+    private UUID writeService;
     private UUID writeCharacteristic;
 
     private int lastWeight, lastFat, lastHydration, lastMuscle, lastBone, lastKcal;
@@ -57,23 +57,21 @@ public class BluetoothSenssun extends BluetoothCommunication {
     }
 
     @Override
-    protected void onBluetoothDiscovery(RxBleDeviceServices rxBleDeviceServices) {
-        for (BluetoothGattService gattService : rxBleDeviceServices.getBluetoothGattServices()) {
-            if (gattService.getUuid().equals(MODEL_A_MEASUREMENT_SERVICE)) {
-                writeCharacteristic = MODEL_A_WRITE_CHARACTERISTIC;
-                setNotificationOn(MODEL_A_NOTIFICATION_CHARACTERISTIC);
-                Timber.d("Found a Model A");
-                break;
-            }
-            if (gattService.getUuid().equals(MODEL_B_MEASUREMENT_SERVICE)) {
-                writeCharacteristic = MODEL_B_WRITE_CHARACTERISTIC;
-                setNotificationOn(MODEL_B_NOTIFICATION_CHARACTERISTIC);
-                Timber.d("Found a Model B");
-                break;
-            }
-        }
+    protected void onBluetoothDiscovery(BluetoothPeripheral peripheral) {
 
-        resumeMachineState();
+            if (peripheral.getService(MODEL_A_MEASUREMENT_SERVICE) != null) {
+                writeService = MODEL_A_MEASUREMENT_SERVICE;
+                writeCharacteristic = MODEL_A_WRITE_CHARACTERISTIC;
+                setNotificationOn(MODEL_A_MEASUREMENT_SERVICE, MODEL_A_NOTIFICATION_CHARACTERISTIC);
+                Timber.d("Found a Model A");
+            }
+
+            if (peripheral.getService(MODEL_B_MEASUREMENT_SERVICE) != null) {
+                writeService = MODEL_B_MEASUREMENT_SERVICE;
+                writeCharacteristic = MODEL_B_WRITE_CHARACTERISTIC;
+                setNotificationOn(MODEL_B_MEASUREMENT_SERVICE, MODEL_B_NOTIFICATION_CHARACTERISTIC);
+                Timber.d("Found a Model B");
+            }
     }
 
     @Override
@@ -83,14 +81,10 @@ public class BluetoothSenssun extends BluetoothCommunication {
                 weightStabilized = false;
                 stepMessageDisplayed = false;
                 values = 0;
-                discoverBluetoothServices();
-                stopMachineState();
-                break;
-            case 1:
                 Timber.d("Sync Date");
                 synchroniseDate();
                 break;
-            case 2:
+            case 1:
                 Timber.d("Sync Time");
                 synchroniseTime();
                 break;
@@ -121,7 +115,7 @@ public class BluetoothSenssun extends BluetoothCommunication {
         switch(data[5]) {
             case (byte)0xAA:
             case (byte)0xA0:
-                if (weightStabilized) {
+                if (values > 1) {
                     return;
                 }
                 if (!stepMessageDisplayed) {
@@ -202,7 +196,7 @@ public class BluetoothSenssun extends BluetoothCommunication {
 
         addChecksum(message);
 
-        writeBytes(writeCharacteristic, message);
+        writeBytes(writeService, writeCharacteristic, message);
     }
 
     private void synchroniseTime() {
@@ -216,7 +210,7 @@ public class BluetoothSenssun extends BluetoothCommunication {
 
         addChecksum(message);
 
-        writeBytes(writeCharacteristic, message);
+        writeBytes(writeService, writeCharacteristic, message);
     }
 
     private void addChecksum(byte[] message) {
@@ -233,12 +227,12 @@ public class BluetoothSenssun extends BluetoothCommunication {
 
         byte message[] = new byte[]{(byte)0xA5, (byte)0x10, (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x00};
         //message[2] = (byte)((selectedUser.getGender().isMale() ? (byte)0x80: (byte)0x00) + 1+selectedUser.getId());
-        message[2] = (byte) ((byte)(selectedUser.getGender().isMale()?(byte)0:(byte)8)*(byte)16 + (byte)selectedUser.getId());
+        message[2] = (byte) ((selectedUser.getGender().isMale() ? 15 : 0) * 16 + selectedUser.getId());
         message[3] = (byte)selectedUser.getAge();
         message[4] = (byte)selectedUser.getBodyHeight();
 
         addChecksum(message);
 
-        writeBytes(writeCharacteristic, message);
+        writeBytes(writeService, writeCharacteristic, message);
     }
 }

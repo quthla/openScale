@@ -60,15 +60,16 @@ public class BluetoothYunmaiSE_Mini extends BluetoothCommunication {
                 final ScaleUser selectedUser = OpenScale.getInstance().getSelectedScaleUser();
                 byte sex = selectedUser.getGender().isMale() ? (byte)0x01 : (byte)0x02;
                 byte display_unit = selectedUser.getScaleUnit() == Converters.WeightUnit.KG ? (byte) 0x01 : (byte) 0x02;
+                byte body_type = (byte) YunmaiLib.toYunmaiActivityLevel(selectedUser.getActivityLevel());
 
                 byte[] user_add_or_query = new byte[]{
                         (byte) 0x0d, (byte) 0x12, (byte) 0x10, (byte) 0x01, (byte) 0x00, (byte) 0x00,
                         userId[0], userId[1], (byte) selectedUser.getBodyHeight(), sex,
                         (byte) selectedUser.getAge(), (byte) 0x55, (byte) 0x5a, (byte) 0x00,
-                        (byte)0x00, display_unit, (byte) 0x03, (byte) 0x00};
+                        (byte)0x00, display_unit, body_type, (byte) 0x00};
                 user_add_or_query[user_add_or_query.length - 1] =
                         xorChecksum(user_add_or_query, 1, user_add_or_query.length - 1);
-                writeBytes(WEIGHT_CMD_CHARACTERISTIC, user_add_or_query);
+                writeBytes(WEIGHT_CMD_SERVICE, WEIGHT_CMD_CHARACTERISTIC, user_add_or_query);
                 break;
             case 1:
                 byte[] unixTime = Converters.toInt32Be(new Date().getTime() / 1000);
@@ -79,14 +80,14 @@ public class BluetoothYunmaiSE_Mini extends BluetoothCommunication {
                 set_time[set_time.length - 1] =
                         xorChecksum(set_time, 1, set_time.length - 1);
 
-                writeBytes(WEIGHT_CMD_CHARACTERISTIC, set_time);
+                writeBytes(WEIGHT_CMD_SERVICE, WEIGHT_CMD_CHARACTERISTIC, set_time);
                 break;
             case 2:
-                setNotificationOn(WEIGHT_MEASUREMENT_CHARACTERISTIC);
+                setNotificationOn(WEIGHT_MEASUREMENT_SERVICE, WEIGHT_MEASUREMENT_CHARACTERISTIC);
                 break;
             case 3:
                 byte[] magic_bytes = new byte[]{(byte)0x0d, (byte)0x05, (byte)0x13, (byte)0x00, (byte)0x16};
-                writeBytes(WEIGHT_CMD_CHARACTERISTIC, magic_bytes);
+                writeBytes(WEIGHT_CMD_SERVICE, WEIGHT_CMD_CHARACTERISTIC, magic_bytes);
                 sendMessage(R.string.info_step_on_scale, 0);
                 break;
             default:
@@ -129,13 +130,27 @@ public class BluetoothYunmaiSE_Mini extends BluetoothCommunication {
                 sex = 0;
             }
 
-            YunmaiLib yunmaiLib = new YunmaiLib(sex, scaleUser.getBodyHeight());
-            float bodyFat = Converters.fromUnsignedInt16Be(weightBytes, 17) / 100.0f;
+            YunmaiLib yunmaiLib = new YunmaiLib(sex, scaleUser.getBodyHeight(), scaleUser.getActivityLevel());
+            float bodyFat;
             int resistance = Converters.fromUnsignedInt16Be(weightBytes, 15);
-            scaleBtData.setFat(bodyFat);
-            scaleBtData.setMuscle(yunmaiLib.getMuscle(bodyFat));
-            scaleBtData.setWater(yunmaiLib.getWater(bodyFat));
-            scaleBtData.setBone(yunmaiLib.getBoneMass(scaleBtData.getMuscle(), weight));
+            if (weightBytes[1] >= (byte)0x1E) {
+                Timber.d("Extract the fat value from received bytes");
+                bodyFat = Converters.fromUnsignedInt16Be(weightBytes, 17) / 100.0f;
+            } else {
+                Timber.d("Calculate the fat value using the Yunmai lib");
+                bodyFat = yunmaiLib.getFat(scaleUser.getAge(), weight, resistance);
+            }
+
+            if (bodyFat != 0) {
+                scaleBtData.setFat(bodyFat);
+                scaleBtData.setMuscle(yunmaiLib.getMuscle(bodyFat));
+                scaleBtData.setWater(yunmaiLib.getWater(bodyFat));
+                scaleBtData.setBone(yunmaiLib.getBoneMass(scaleBtData.getMuscle(), weight));
+                scaleBtData.setLbm(yunmaiLib.getLeanBodyMass(weight, bodyFat));
+                scaleBtData.setVisceralFat(yunmaiLib.getVisceralFat(bodyFat, scaleUser.getAge()));
+            } else {
+                Timber.e("body fat is zero");
+            }
 
             Timber.d("received bytes [%s]", byteInHex(weightBytes));
             Timber.d("received decrypted bytes [weight: %.2f, fat: %.2f, resistance: %d]", weight, bodyFat, resistance);
