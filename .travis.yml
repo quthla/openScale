@@ -50,7 +50,7 @@ before_script:
 script: cd android_app && ./gradlew testDebug assembleAndroidTest assembleDebug
 
 before_deploy:
-  - ln -s app/build/outputs/apk/debug/openScale-debug.apk openScale-${TAG}-build.apk
+  - ln -s app/build/outputs/apk/debug/*.apk openScale-${TAG}-build.apk
   - git tag -f travis-${TAG}-build
   - git remote add gh
     https://${OWNER}:${GITHUB_API_KEY}@github.com/${TRAVIS_REPO_SLUG}.git
@@ -62,8 +62,8 @@ before_deploy:
 deploy:
   provider: releases
   api-key: $GITHUB_API_KEY
-  # file: openScale-${TAG}-build.apk
-  file: app/build/outputs/apk/debug/openScale-debug.apk
+  file: openScale-${TAG}-build.apk
+
   skip_cleanup: true
   name: openScale development build (${TRAVIS_BRANCH})
   body: Automatic openScale development build of $TRAVIS_BRANCH branch
