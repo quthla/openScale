@@ -97,6 +97,7 @@ public class BluetoothSenssun extends BluetoothCommunication {
 
     @Override
     public void onBluetoothNotify(UUID characteristic, byte[] value) {
+        Timber.d("Read bytes " + byteInHex(value));
         if (value == null || value[0] != (byte)0xFF) {
             return;
         }
